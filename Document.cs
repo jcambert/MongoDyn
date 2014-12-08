@@ -1,4 +1,5 @@
 ﻿using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,6 +8,8 @@ using System.Threading.Tasks;
 
 namespace MongoDyn
 {
+    //[BsonSerializer(typeof(DocumentSerializer))]
+    [Serializable]
     internal class Document : BsonDocument
     {
         public Document()
@@ -36,5 +39,7 @@ namespace MongoDyn
         {
             get { return this["_id"].RawValue; }
         }
+
+        public BsonValue Id { get { return this["_id"]; } }
     }
 }
