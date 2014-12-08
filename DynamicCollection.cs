@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MongoDB.Bson.Serialization;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -8,13 +9,13 @@ using System.Threading.Tasks;
 namespace MongoDyn
 {
     public class DynamicCollection<TKey, TModel> : DynamicCollectionBase<TKey, TModel>
-        where TKey : class
+
         where TModel : class
     {
 
         protected readonly PropertyInfo[] _properties = typeof(TModel).GetProperties(BindingFlags.Instance | BindingFlags.Public);
 
-        private  bool _eagerLoad;
+        private bool _eagerLoad;
 
         internal DynamicCollection(PropertyInfo key, bool notifyPropertyChanged = false, bool audit = false)
             : this(typeof(TModel).Name, key, notifyPropertyChanged, audit)
@@ -24,14 +25,15 @@ namespace MongoDyn
         internal DynamicCollection(string collectionName, PropertyInfo key, bool notifyEnabled = false, bool audit = false)
             : base(collectionName, key, notifyEnabled, audit)
         {
+            //BsonSerializer.RegisterSerializer(   typeof(Document),   new DocumentSerializer());
             initialize();
         }
 
         private void initialize()
         {
-            CollectionQueryMethodInfo = Helper.GetMethodInfo<DynamicCollection<TKey,TModel>>(x => x.CollectionQuery(null, 0, null));
+            CollectionQueryMethodInfo = Helper.GetMethodInfo<DynamicCollection<TKey, TModel>>(x => x.CollectionQuery(null, 0, null));
 
-            GetByKeyMethodInfo = Helper.GetMethodInfo<DynamicCollection<TKey,TModel>>(x => x.GetByKey(null));
+            GetByKeyMethodInfo = Helper.GetMethodInfo<DynamicCollection<TKey, TModel>>(x => x.GetByKey(default(TKey)));
 
             _eagerLoad = Helper.IsEagerLoadEnabled<TModel>();
 
@@ -63,13 +65,13 @@ namespace MongoDyn
                     if (type.GetGenericTypeDefinition() == typeof(IEnumerable<>).GetGenericTypeDefinition())
                     {
                         var argu = type.GetGenericArguments().First();
-                        var repo = Dynamic.BuildRepository<TKey,TModel>(argu);
+                        var repo = Dynamic.BuildRepository<TKey, TModel>(argu);
                         ChildCollections.Add(argu.Name, repo);
                     }
                 }
                 else
                 {
-                    var repo = Dynamic.BuildRepository<TKey,TModel>(type);
+                    var repo = Dynamic.BuildRepository<TKey, TModel>(type);
                     FkCollections.Add(propertyInfo.Name, repo);
                 }
             }

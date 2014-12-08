@@ -48,11 +48,14 @@ namespace MongoDyn
 
         [Pure]
         public static DynamicCollection<TKey, TModel> GetCollection<TKey, TModel>()
-            where TKey : class
+          
             where TModel : class
         {
-            Contract.Requires(System.Attribute.GetCustomAttributes(typeof(TModel), typeof(KeyAttribute), true).Count() != 0, "Model must have exactly one Key Attribute");
+            if (typeof(TModel).GetProperties().Where(p=>Attribute.IsDefined(p,typeof(KeyAttribute))).Count() != 1)
+                throw new DocumentException("Model must have exactly one Key Attribute");
 
+     
+            
             var model = typeof(TModel).Name;
             object value;
             if (!Repositorories.TryGetValue(model, out value))
@@ -88,7 +91,6 @@ namespace MongoDyn
         }
 
         internal static DynamicCollectionBase<TKey, TModel> BuildRepository<TKey, TModel>(Type type)
-            where TKey : class
             where TModel : class
         {
             var mi = typeof(Dynamic).GetMethod("GetCollection");

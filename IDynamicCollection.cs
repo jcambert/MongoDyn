@@ -14,7 +14,7 @@ namespace MongoDyn
     /// <typeparam name="TKey"></typeparam>
     [ContractClass(typeof(IDynamicCollectionContract<,>))]
     public interface IDynamicCollection<TKey, TModel>
-        where TKey : class
+       
         where TModel : class
     {
         /// <summary>
@@ -88,7 +88,6 @@ namespace MongoDyn
 
     [ContractClassFor(typeof(IDynamicCollection<,>))]
     internal abstract class IDynamicCollectionContract<TKey, TModel> : IDynamicCollection<TKey, TModel>
-        where TKey : class
         where TModel : class
     {
 

@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 namespace MongoDyn
 {
     public abstract class DynamicCollectionBase<TKey, TModel> : IDynamicCollection<TKey, TModel>
-        where TKey : class
+       
         where TModel : class
     {
 
@@ -63,8 +63,8 @@ namespace MongoDyn
 
         internal Document GetBsonDocumentById(object id)
         {
-            var dynamicDocument = Collection.FindOneById(BsonValue.Create(id));
-            return dynamicDocument;
+            Document dynamicDocument = Collection.FindOneById(BsonValue.Create(id));
+            return dynamicDocument ;
         }
 
         protected virtual void Update(object entity, object keyValue)
@@ -216,7 +216,7 @@ namespace MongoDyn
 
         public TModel GetByKey(TKey key)
         {
-            var document = GetBsonDocumentById(key);
+            Document document =  GetBsonDocumentById(key);
             var entity = document == null
                        ? null
                        : CastSingle(document);
