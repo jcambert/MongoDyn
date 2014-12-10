@@ -7,19 +7,28 @@ namespace MongoDyn.tests
     [TestClass]
     public class DynamicTest
     {
-        private static readonly DynamicCollection<int, ICustomer> Customers = Dynamic.GetCollection<int, ICustomer>();
+        
+        private static  DynamicCollection<int, ICustomer> Customers ;
         private const long Records = 1000;
 
         [ClassInitialize]
         public static void Initialize(TestContext ctx)
         {
-           
+           // Dynamic.Audit = true;
+            Customers = Dynamic.GetCollection<int, ICustomer>();
             Customers.DeleteAll(true);
             Assert.IsTrue(Customers.Count == 0);
 
            
         }
 
+        [TestMethod]
+        public void TestClassInitializer()
+        {
+            var customer = Customers.New();
+            customer.Name = string.Format("Customer - {0} ", 1);
+            Customers.Upsert(customer);
+        }
 
         [TestMethod]
         public void DynInserts()
@@ -37,10 +46,10 @@ namespace MongoDyn.tests
         [TestMethod]
         public void DynFindAndUpdate()
         {
-            for (int i = 1; i <= Records; i++)
+            for (int i = 0; i < Records; i++)
             {
-                var customer = Customers.GetByKey(i);
-                customer.Name = string.Format("Customer - {0} ", i);
+                var customer = Customers.GetByKey(i+1);
+                customer.Name = string.Format("Customer changed- {0} ", i);
                 Customers.Upsert(customer);
             }
             Assert.IsTrue(Customers.Count == Records);
@@ -49,14 +58,14 @@ namespace MongoDyn.tests
         [TestMethod]
         public void DynUpdateByKey()
         {
-            for (int i = 1; i <= Records; i++)
+            for (int i = 0; i < Records; i++)
             {
                 dynamic customer = new ExpandoObject();
-                customer.Id = i;
-                customer.Name = string.Format("Customer - {0} ", i);
+                customer.Id = i+1;
+                customer.Name = string.Format("Customer Expendo- {0} ", i);
                 Customers.UpsertImpromptu(customer);
             }
-            Assert.IsTrue(Customers.Count == Records);
+            Assert.IsTrue(Customers.Count == Records*2);
         }
     }
 }
