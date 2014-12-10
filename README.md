@@ -24,6 +24,7 @@ The MongoDynamic project is a library that help you to abstract your poco
     DynamicCollection<int, ICustomer> Customers = Dynamic.GetCollection<int, ICustomer>();
 
 ### Perform crud
+     
     Customers.DeleteAll(true);
     var customer = Customers.New();
     customer.Name = "CustormerName";
