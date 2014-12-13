@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace MongoDyn
 {
-   public static  class Extensions
+   internal static  class Extensions
     {
       
 

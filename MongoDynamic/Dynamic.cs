@@ -35,15 +35,37 @@ namespace MongoDyn
         {
             get
             {
-                var url = new MongoUrl(GetConnString());
-                return MongoServer.Create(url).GetDatabase(url.DatabaseName);
+                MongoClientSettings c_settings=new MongoClientSettings();
+                c_settings.ConnectionMode=ConnectionMode.Automatic;
+                c_settings.Server=new MongoServerAddress(getHost(),getPort());
+
+                MongoServer server= new MongoClient(c_settings).GetServer();
+               
+                MongoDatabase db = server.GetDatabase(getDatabaseName());
+
+               
+                return db;
+                //var url = new MongoUrl(GetConnString());
+                //return MongoServer.Create(url).GetDatabase(url.DatabaseName);
+                
             }
         }
 
 
-        public static string GetConnString()
+        public static string getHost()
         {
-            return ConfigurationManager.ConnectionStrings[_defaultConnectionstringName].ConnectionString;
+            return MongoConfiguration.Section.Host;
+        }
+
+        public static int getPort()
+        {
+            return MongoConfiguration.Section.Port;
+        }
+
+
+        public static string getDatabaseName()
+        {
+            return MongoConfiguration.Section.Database;
         }
 
         [Pure]

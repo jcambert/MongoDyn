@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace MongoDyn
 {
-    internal class Pair
+   /* internal class Pair
     {
         public Pair(PropertyInfo property,IndexAttribute attr)
         {
@@ -19,5 +19,5 @@ namespace MongoDyn
         public PropertyInfo Property { get; private set; }
 
         public IndexAttribute Attribute { get;private set; }
-    }
+    }*/
 }

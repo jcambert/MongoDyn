@@ -17,8 +17,8 @@ namespace MongoDyn
 
         static IdGenerator()
         {
-            var url = new MongoUrl(Dynamic.GetConnString());
-            var db = MongoServer.Create(url).GetDatabase(url.DatabaseName);
+            //var url = new MongoUrl(Dynamic.GetConnString());
+            var db = Dynamic.Db; // MongoServer.Create(url).GetDatabase(url.DatabaseName);
             NextIdTable = db.GetCollection(LastId);
         }
 

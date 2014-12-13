@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace MongoDyn
 {
-    public static class Helper
+    internal  static class Helper
     {
         private static readonly Dictionary<Type, string> KeyNames = new Dictionary<Type, string>();
         private static readonly Dictionary<Type, List<Tuple<IMongoIndexKeys, IMongoIndexOptions>>> Indexes
