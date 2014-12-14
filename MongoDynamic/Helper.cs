@@ -85,12 +85,12 @@ namespace MongoDyn
             ForeignKeyDefs.Add(qInfo);
         }
 
-        internal static bool IsEagerLoadEnabled<TModel>()
+        /*internal static bool IsEagerLoadEnabled<TModel>()
         {
             var compareStr = typeof(TModel).Name;
 
             return ForeignKeyDefs.Any(q => q.CurrentTable == compareStr) || ChildCollectionDefs.Any(q => q.MasterTable == compareStr);
-        }
+        }*/
 
         internal static ForeignKeyDef GetDefForFK<TModel>(string complexPropertyName)
         {

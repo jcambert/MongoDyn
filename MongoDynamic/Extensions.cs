@@ -55,5 +55,22 @@ namespace MongoDyn
             else memberExpression = (MemberExpression)expression.Body;
             return memberExpression.Member.Name;
         }
+
+       /// <summary>
+       /// Indicate if an object is a generic list
+       /// </summary>
+       /// <param name="o"></param>
+       /// <returns></returns>
+        public static bool IsGenericList(this object o)
+        {
+            bool isGenericList = false;
+
+            var oType = o.GetType();
+
+            if (oType.IsGenericType && (oType.GetGenericTypeDefinition() == typeof(IList<>)))
+                isGenericList = true;
+
+            return isGenericList;
+        }
     }
 }

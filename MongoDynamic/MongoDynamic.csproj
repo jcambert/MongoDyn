@@ -7,7 +7,7 @@
     <ProjectGuid>{6AE2E8D9-B1C2-4868-A312-DDD5C57C43D3}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>MongoDynamic</RootNamespace>
+    <RootNamespace>MongoDyn</RootNamespace>
     <AssemblyName>MongoDynamic</AssemblyName>
     <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
@@ -33,6 +33,9 @@
     <Reference Include="ImpromptuInterface">
       <HintPath>..\packages\ImpromptuInterface.6.2.2\lib\net40\ImpromptuInterface.dll</HintPath>
     </Reference>
+    <Reference Include="log4net">
+      <HintPath>..\packages\log4net.2.0.3\lib\net40-full\log4net.dll</HintPath>
+    </Reference>
     <Reference Include="MongoDB.Bson, Version=1.9.2.235, Culture=neutral, PublicKeyToken=f686731cfb9cc103, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\packages\mongocsharpdriver.1.9.2\lib\net35\MongoDB.Bson.dll</HintPath>
@@ -51,20 +54,25 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Child.cs" />
     <Compile Include="Document.cs" />
     <Compile Include="DocumentException.cs" />
     <Compile Include="DocumentSerializer.cs" />
     <Compile Include="Dynamic.cs" />
     <Compile Include="DynamicCollection.cs" />
     <Compile Include="Extensions.cs" />
+    <Compile Include="ForeignKeyAttribute.cs" />
     <Compile Include="Helper.cs" />
+    <Compile Include="ICustomer.cs" />
     <Compile Include="IdGenerator.cs" />
     <Compile Include="IDynamicCollection.cs" />
     <Compile Include="IModel.cs" />
     <Compile Include="Index.cs" />
     <Compile Include="IndexAttribute.cs" />
     <Compile Include="KeyAttribute.cs" />
+    <Compile Include="ModelEventArgs.cs" />
     <Compile Include="MongoConfiguration.cs" />
+    <Compile Include="MongoModelAttribute.cs" />
     <Compile Include="MongoSection.cs" />
     <Compile Include="Pair.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

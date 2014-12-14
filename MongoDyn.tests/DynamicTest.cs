@@ -1,6 +1,7 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Dynamic;
+using System.ComponentModel;
 
 namespace MongoDyn.tests
 {
@@ -9,12 +10,13 @@ namespace MongoDyn.tests
     {
         
         private static  DynamicCollection<int, ICustomer> Customers ;
-        private const long Records = 1000;
+        private const long Records = 10;
 
         [ClassInitialize]
         public static void Initialize(TestContext ctx)
         {
            // Dynamic.Audit = true;
+            Dynamic.NotifyPropertyChanged = true;
             Customers = Dynamic.GetCollection<int, ICustomer>();
             Customers.DeleteAll(true);
             Assert.IsTrue(Customers.Count == 0);
@@ -26,8 +28,16 @@ namespace MongoDyn.tests
         public void TestClassInitializer()
         {
             var customer = Customers.New();
-            customer.Name = string.Format("Customer - {0} ", 1);
+
+            ((INotifyPropertyChanged)customer).PropertyChanged += DynamicTest_PropertyChanged;
+            customer.Name = "toto";
             Customers.Upsert(customer);
+            Assert.IsNotNull(customer);
+        }
+
+        void DynamicTest_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+           
         }
 
         [TestMethod]
@@ -65,7 +75,7 @@ namespace MongoDyn.tests
                 customer.Name = string.Format("Customer Expendo- {0} ", i);
                 Customers.UpsertImpromptu(customer);
             }
-            Assert.IsTrue(Customers.Count == Records*2);
+            Assert.IsTrue(Customers.Count == Records);
         }
     }
 }

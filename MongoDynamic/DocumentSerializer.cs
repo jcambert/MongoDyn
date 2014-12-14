@@ -3,6 +3,7 @@ using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -37,20 +38,42 @@ namespace MongoDyn
 
             foreach (var prop in propsDoc)
             {
-                
-                bsonWriter.WriteName(prop.Name);
-                BsonSerializer.Serialize(bsonWriter, prop.PropertyType, document[prop.Name]);
+                if (document[prop.Name].GetType() != typeof(BsonNull) )
+                {
+                    bsonWriter.WriteName(prop.Name);
+                    BsonSerializer.Serialize(bsonWriter, prop.PropertyType, document[prop.Name]);
+                }
             }
 
 
             foreach (var prop in propsType)
             {
+                
                 if (!Dynamic.Audit && prop.Name.Equals("LastChanges")) continue;
-                bsonWriter.WriteName(prop.Name);
-                BsonSerializer.Serialize(bsonWriter, prop.PropertyType, prop.GetValue(value, null));
+
+                try
+                {
+                    if (document[prop.Name].GetType() == typeof(BsonNull)) continue;
+                }
+                catch (Exception ex)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    
+                    bsonWriter.WriteName(prop.Name);
+                    BsonSerializer.Serialize(bsonWriter, prop.PropertyType, prop.GetValue(value, null));
+                }
+                catch (Exception ex)
+                {
+                    bsonWriter.WriteNull();
+                    continue;
+                }
             }
 
-            if (key != null)
+            if (key != null && !document.IsEmbedded())
             {
                 bsonWriter.WriteName("_id");
                 BsonSerializer.Serialize(bsonWriter, key.PropertyType, document["_id"]);
@@ -68,14 +91,7 @@ namespace MongoDyn
             return false;
         }
 
-        /*  public void Serialize(MongoDB.Bson.IO.BsonWriter bsonWriter, Type nominalType, IBsonSerializationOptions options)
-          {
-              if (nominalType == typeof(DocumentSerializer))
-                  throw new ArgumentException("Cannot serialize anything but self");
-              ArraySerializer<Document> ser = new ArraySerializer<Document>();
-              ser.Serialize(bsonWriter,nominalType,value, options);
-          }
-          */
+
         public void SetDocumentId(object id)
         {
             return;
@@ -117,7 +133,7 @@ namespace MongoDyn
         {
             if (nominalType == typeof(DocumentSerializer)) throw new ArgumentException("Cannot deserialize anything but self");
             Document obj = Activator.CreateInstance(nominalType) as Document;
-            object value=null;
+            object value = null;
             bsonReader.ReadStartDocument();
 
             while (bsonReader.ReadBsonType() != BsonType.EndOfDocument)
@@ -126,14 +142,15 @@ namespace MongoDyn
                 var btype = bsonReader.CurrentBsonType;
 
                 if (!Dynamic.Audit && name.Equals("LastChanges")) continue;
-                
-                
+
+
                 switch (btype)
                 {
                     case BsonType.Array:
-                        value = BsonSerializer.Deserialize(bsonReader,typeof(Array) );
+                        value = BsonSerializer.Deserialize(bsonReader, typeof(Array));
                         break;
                     case BsonType.Binary:
+                        if (Debugger.IsAttached) Debugger.Break();
                         break;
                     case BsonType.Boolean:
                         value = BsonSerializer.Deserialize(bsonReader, typeof(Boolean));
@@ -142,11 +159,13 @@ namespace MongoDyn
                         value = BsonSerializer.Deserialize(bsonReader, typeof(DateTime));
                         break;
                     case BsonType.Document:
+                        if (Debugger.IsAttached) Debugger.Break();
                         break;
                     case BsonType.Double:
                         value = BsonSerializer.Deserialize(bsonReader, typeof(double));
                         break;
                     case BsonType.EndOfDocument:
+                        if (Debugger.IsAttached) Debugger.Break();
                         break;
                     case BsonType.Int32:
                         value = BsonSerializer.Deserialize(bsonReader, typeof(Int32));
@@ -155,37 +174,49 @@ namespace MongoDyn
                         value = BsonSerializer.Deserialize(bsonReader, typeof(Int64));
                         break;
                     case BsonType.JavaScript:
+                        if (Debugger.IsAttached) Debugger.Break();
                         break;
                     case BsonType.JavaScriptWithScope:
+                        if (Debugger.IsAttached) Debugger.Break();
                         break;
                     case BsonType.MaxKey:
+                        if (Debugger.IsAttached) Debugger.Break();
                         break;
                     case BsonType.MinKey:
+                        if (Debugger.IsAttached) Debugger.Break();
                         break;
                     case BsonType.Null:
+                        if (Debugger.IsAttached) Debugger.Break();
+                        bsonReader.ReadNull();
+                        value = null;
                         break;
                     case BsonType.ObjectId:
                         value = BsonSerializer.Deserialize(bsonReader, typeof(Int32));
                         break;
                     case BsonType.RegularExpression:
+                        if (Debugger.IsAttached) Debugger.Break();
                         break;
                     case BsonType.String:
                         value = BsonSerializer.Deserialize(bsonReader, typeof(string));
                         break;
                     case BsonType.Symbol:
+                        if (Debugger.IsAttached) Debugger.Break();
                         break;
                     case BsonType.Timestamp:
+
                         value = BsonSerializer.Deserialize(bsonReader, typeof(DateTime));
                         break;
                     case BsonType.Undefined:
+                        if (Debugger.IsAttached) Debugger.Break();
                         break;
                     default:
                         break;
                 }
 
-                
+                if (value != null)
+               
 
-                obj[name] = BsonValue.Create(value);
+                    obj[name] = BsonValue.Create(value);
 
             }
 

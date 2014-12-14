@@ -1,7 +1,9 @@
 ﻿using ImpromptuInterface;
 using ImpromptuInterface.Dynamic;
+using log4net;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using MongoDB.Driver.Linq;
 using MongoDB.Driver.Builders;
 using System;
 using System.Collections.Generic;
@@ -16,98 +18,116 @@ using System.Threading.Tasks;
 
 namespace MongoDyn
 {
-    public sealed class DynamicCollection<TKey, TModel> : IDynamicCollection<TKey, TModel>
-       
-        where TModel : class
+
+    public abstract class DynamicCollection : IDynamicCollection
     {
-
+        static readonly ILog logger = LogManager.GetLogger(typeof(DynamicCollection));
         protected readonly bool NotifyEnabled;
-
         internal readonly MongoCollection<Document> Collection;
+        protected internal MethodInfo GetByKeyMethodInfo;
+        protected readonly List<string> DocumentKeys = new List<string>();
+        protected bool _eagerLoad;
+        protected readonly PropertyInfo[] _properties;
+        //protected readonly Dictionary<string, DynamicCollection> ChildCollections = new Dictionary<string, DynamicCollection>();
+        //protected readonly Dictionary<string, PropertyInfo> ChildMethods = new Dictionary<string, PropertyInfo>();
+        protected readonly Dictionary<string, Child> Childs = new Dictionary<string, Child>();
+        protected readonly Dictionary<string, DynamicCollection> FkCollections = new Dictionary<string, DynamicCollection>();
 
         /// <summary>
         /// Cache property that will be used to eager load collections.
         /// </summary>
         internal MethodInfo CollectionQueryMethodInfo;
 
-        /// <summary>
-        /// Cache property that will be used to eager load foreignKeys
-        /// </summary>
 
-        internal MethodInfo GetByKeyMethodInfo;
-
-
-        protected readonly List<string> DocumentKeys = new List<string>();
-
-        internal readonly Dictionary<string, DynamicCollection<TKey, TModel>> FkCollections = new Dictionary<string, DynamicCollection<TKey, TModel>>();
-
-        internal readonly Dictionary<string, DynamicCollection<TKey, TModel>> ChildCollections = new Dictionary<string, DynamicCollection<TKey, TModel>>();
-
-        protected readonly PropertyInfo[] _properties = typeof(TModel).GetProperties(BindingFlags.Instance | BindingFlags.Public);
-
-        private bool _eagerLoad;
+        public Func<object> NestIdGenerator;
 
         #region ctor
-
-        internal DynamicCollection(string collectionName, PropertyInfo key, bool notifyEnabled = false, bool audit = true)
+        internal DynamicCollection(Type collectionType, string collectionName, PropertyInfo key, bool notifyEnabled = false, bool audit = true,bool eagerLoad=false)
         {
             Contract.Requires(collectionName != null && collectionName.Trim().Length > 0, "Collection Name must be non null nor empty");
             Contract.Requires(key != null, "key must not be null");
-            Contract.Requires(typeof(TKey).Equals(key.PropertyType), "TKey and property info key must be the same type");
+
             NotifyEnabled = notifyEnabled;
             Collection = Dynamic.Db.GetCollection<Document>(collectionName);
+            CollectionName = collectionName;
+            CollectionType = collectionType;
             Key = key;
-            KeyType = typeof(TKey);
+            KeyType = key.PropertyType;
             Audit = audit;
-            initialize();
+
+            _properties = collectionType.GetProperties(BindingFlags.Instance | BindingFlags.Public);
+            _eagerLoad = eagerLoad;
+        }
+        #endregion
+
+        #region properties
+
+        internal PropertyInfo Key { get; private set; }
+
+        internal bool Audit { get; private set; }
+
+        public string CollectionName
+        {
+            get;
+            private set;
         }
 
+        public Type CollectionType
+        {
+            get;
+            private set;
+        }
+
+        public Type KeyType
+        {
+            get;
+            private set;
+        }
+
+        internal object GetKey(object entity)
+        {
+            return Key.GetGetMethod().Invoke(entity, new object[] { });
+        }
+
+        internal void SetKey(object entity, object id)
+        {
+            Key.GetSetMethod().Invoke(entity, new object[] { id });
+        }
         #endregion
 
 
-        private void initialize()
+        protected virtual void initialize()
         {
-            CollectionQueryMethodInfo = Helper.GetMethodInfo<DynamicCollection<TKey, TModel>>(x => x.CollectionQuery(null, 0, null));
+            logger.Debug("initialize()");
 
-            GetByKeyMethodInfo = Helper.GetMethodInfo<DynamicCollection<TKey, TModel>>(x => x.GetByKey(default(TKey)));
-
-            _eagerLoad = Helper.IsEagerLoadEnabled<TModel>();
-
-            foreach (var propertyInfo in _properties/*.Where(propertyInfo => propertyInfo.CanWrite && propertyInfo.PropertyType.IsInterface)*/)
-            {
-                DocumentKeys.Add(propertyInfo.Name);
-            }
-
-            DocumentKeys.RemoveAll(p => p == Key.Name);
-
-            var indexes = Helper.GetIndexes<TModel>();
-
-            foreach (var tuple in indexes)
-            {
-                Collection.CreateIndex(tuple.Item1, tuple.Item2);
-            }
         }
 
         internal void PrepareEagerLoad()
         {
+            logger.Debug("PrepareEagerLoad()");
             if (!_eagerLoad)
                 return;
 
-            foreach (var propertyInfo in _properties.Where(p => p.CanWrite && p.PropertyType.IsInterface))
+            foreach (var propertyInfo in _properties.Where(p => p.CanWrite && p.PropertyType.IsInterface && p.GetCustomAttributes(typeof(ForeignKeyAttribute), true).Count() > 0))
             {
                 var type = propertyInfo.PropertyType;
                 if (type.IsGenericType)
                 {
-                    if (type.GetGenericTypeDefinition() == typeof(IEnumerable<>).GetGenericTypeDefinition())
+
+                    if (type.GetGenericTypeDefinition() == typeof(IList<>).GetGenericTypeDefinition())
                     {
                         var argu = type.GetGenericArguments().First();
-                        var repo = Dynamic.BuildRepository<TKey, TModel>(argu);
-                        ChildCollections.Add(argu.Name, repo);
+                        var repo = Dynamic.BuildRepository(argu);
+
+
+                        Child child = new Child(this, propertyInfo.Name, repo, propertyInfo);
+
+                        Childs[argu.Name] = child;
                     }
                 }
                 else
                 {
-                    var repo = Dynamic.BuildRepository<TKey, TModel>(type);
+                    var repo = Dynamic.BuildRepository(type);
                     FkCollections.Add(propertyInfo.Name, repo);
                 }
             }
@@ -115,22 +135,59 @@ namespace MongoDyn
 
         internal Document GetBsonDocumentById(object id)
         {
+            logger.Debug(string.Format("GetBsonDocumentById({0})", id.ToString()));
             Document dynamicDocument = Collection.FindOneById(BsonValue.Create(id));
-            return dynamicDocument ;
+            return dynamicDocument;
         }
 
-        protected  void Update(object entity, object keyValue)
+        protected void Update(object entity, object keyValue)
         {
+            logger.Debug(string.Format("Update({0},{1})", entity.ToString(), keyValue.ToString()));
             Document doc = BuildDocument(entity, keyValue);
             Collection.Save(doc);
         }
 
-        internal Document BuildDocument(object entity, object id)
+        protected object BuildKey(object entity, object id)
         {
+            var entityKey = GetKey(entity);
+
+            if (KeyType == typeof(int))
+            {
+                if (((int)entityKey) == 0)
+                {
+                    id = id ?? IdGenerator.GetNextIdFor(CollectionType);
+                    SetKey(entity, id);
+                }
+                else
+                    id = entityKey;
+            }
+            else
+            {
+                if (entityKey == null)
+                {
+                    if (NestIdGenerator == null) throw new ArgumentNullException("A Id generator must be specified (NestIdGenerator)  for non int Key");
+                    id = NestIdGenerator();
+                    SetKey(entity, id);
+                }
+                else
+                    id = entityKey;
+            }
+
+            return id;
+        }
+
+        internal Document BuildDocument(object entity, object id, Child relation = null)
+        {
+
+            id = BuildKey(entity, id);
+
+            logger.Debug(string.Format("BuildDocument({0},{1})", entity.ToString(), id.ToString()));
+
             var document = new Document(id, Audit);
-            document.BaseType = typeof(TModel);
+            document.BaseType = CollectionType;
             foreach (var name in DocumentKeys)
             {
+                if (relation != null && relation.Relation == RelationShip.Embeddded && relation.ForeignKey.ForeignKeyName == name) continue;
                 var pValue = Impromptu.InvokeGet(entity, name);
                 try
                 {
@@ -145,11 +202,150 @@ namespace MongoDyn
                 }
             }
 
+            foreach (KeyValuePair<string, Child> pair in Childs)
+            {
+
+                List<BsonValue> values = new List<BsonValue>();
+
+
+
+                var pValue = Impromptu.InvokeGet(entity, pair.Value.Name);
+
+                foreach (var item in pValue)
+                {
+
+                    if (pair.Value.Relation == RelationShip.Embeddded)
+                    {
+                        var k = pair.Value.Collection.GetKey(item);
+                        var doc = pair.Value.Collection.BuildDocument(item, k, pair.Value);
+                        ((Document)doc).Embed();
+                        var p = BsonValue.Create(doc);
+                        values.Add(p);
+                    }
+                    else
+                    {
+                        var k = pair.Value.Collection.GetKey(item);
+                        k = pair.Value.Collection.BuildKey(item, k);
+
+                        var p = BsonValue.Create(k);
+                        values.Add(p);
+                    }
+
+                }
+                if (values.Count > 0)
+                    document[pair.Value.Name] = BsonArray.Create(values);
+
+            }
+
             return document;
         }
 
+        protected static bool IsDefaultValue(object keyValue)
+        {
+            logger.Debug(string.Format("IsDefaultValue({0})", keyValue.ToString()));
+            if (keyValue == null)
+                return true;
+
+            var bsonValue = BsonValue.Create(keyValue);
+
+            switch (bsonValue.BsonType)
+            {
+                case BsonType.Int32:
+                    return Convert.ToInt32(keyValue) == 0;
+                default:
+                    return false;
+            }
+        }
+
+
+        public long Count
+        {
+            get
+            {
+                logger.Debug("Count");
+                return Collection.Count();
+            }
+        }
+
+        public void DeleteAll(bool resetCounter)
+        {
+            logger.Debug(string.Format("DeleteAll({0})", resetCounter));
+            Collection.Drop();
+            if (resetCounter)
+            {
+                IdGenerator.ResetCounter(CollectionType);
+            }
+        }
+    }
+
+    public sealed class DynamicCollection<TKey, TModel> : DynamicCollection, IDynamicCollection<TKey, TModel>
+
+        where TModel : class
+    {
+
+
+        public event EventHandler<ModelEventArgs<TModel>> onBeforeSave = delegate { };
+        public event EventHandler<ModelEventArgs<TModel>> onAfterSave = delegate { };
+
+        static readonly ILog logger = LogManager.GetLogger(typeof(DynamicCollection<,>));
+
+
+
+
+
+        #region ctor
+
+        internal DynamicCollection(Type collectionType, string collectionName, PropertyInfo key, bool notifyEnabled = false, bool audit = true,bool eagerLoad=false)
+            : base(collectionType, collectionName, key, notifyEnabled, audit,eagerLoad)
+        {
+            Contract.Requires(typeof(TKey).Equals(key.PropertyType), "TKey and property info key must be the same type");
+
+
+            initialize();
+
+        }
+
+
+
+
+        #endregion
+
+
+
+
+        protected override void initialize()
+        {
+            base.initialize();
+
+            logger.Debug("initialize()");
+            CollectionQueryMethodInfo = Helper.GetMethodInfo<DynamicCollection<TKey, TModel>>(x => x.CollectionQuery(null, 0, null));
+
+            GetByKeyMethodInfo = Helper.GetMethodInfo<DynamicCollection<TKey, TModel>>(x => x.GetByKey(default(TKey)));
+
+            //_eagerLoad = Helper.IsEagerLoadEnabled<TModel>();
+
+          
+
+            foreach (var propertyInfo in _properties.Where(propertyInfo => propertyInfo.CanWrite /*&& propertyInfo.PropertyType.IsInterface/* && propertyInfo.GetCustomAttributes<ForeignKeyAttribute>().Count()==0*/))
+            {
+                DocumentKeys.Add(propertyInfo.Name);
+            }
+
+            DocumentKeys.RemoveAll(p => p == Key.Name);
+
+            var indexes = Helper.GetIndexes<TModel>();
+
+            foreach (var tuple in indexes)
+            {
+                Collection.CreateIndex(tuple.Item1, tuple.Item2);
+            }
+        }
+
+
+
         private TModel CastSingle(Document document)
         {
+            // logger.Debug(string.Format("CastSingle({0})", document.ToString()));
             if (document == null)
                 return null;
 
@@ -166,7 +362,7 @@ namespace MongoDyn
                 TryGetFKs(entity);
             }
 
-            if (ChildCollections.Count > 0)
+            if (Childs.Count > 0)
             {
                 TryGetChildCollections(entity);
             }
@@ -176,12 +372,14 @@ namespace MongoDyn
 
         private IEnumerable<TModel> CastMany(IEnumerable<Document> documents)
         {
+            logger.Debug(string.Format("CastMany(documents)"));
             return documents.Select(CastSingle).AsEnumerable();
         }
 
 
         void TryGetFKs(TModel entity)
         {
+            logger.Debug(string.Format("TryGetFKs({0})", entity.ToString()));
             foreach (var keyValuePair in FkCollections)
             {
                 var qInfo = Helper.GetDefForFK<TModel>(keyValuePair.Key);
@@ -201,12 +399,15 @@ namespace MongoDyn
                     continue;
 
                 Impromptu.InvokeSet(entity, qInfo.ComplexPropertyName, result);
+
+
             }
         }
 
         void TryGetChildCollections(TModel entity)
         {
-            foreach (var keyValuePair in ChildCollections)
+            logger.Debug(string.Format("TryGetChildCollections({0})", entity.ToString()));
+            foreach (var keyValuePair in Childs)
             {
                 var queryCollectionInfo = Helper.GetDefForChildCollection<TModel>(keyValuePair.Key);
 
@@ -216,7 +417,7 @@ namespace MongoDyn
                 //id atual
                 var currentId = Impromptu.InvokeGet(entity, Key.Name);
 
-                var mInfo = keyValuePair.Value.CollectionQueryMethodInfo;
+                var mInfo = keyValuePair.Value.Collection.CollectionQueryMethodInfo;
                 // GetMethod("CollectionQuery");
 
                 var result = mInfo.Invoke(keyValuePair.Value, new object[] { queryCollectionInfo.DetailKey, ExpressionType.Equal, currentId });
@@ -225,42 +426,25 @@ namespace MongoDyn
             }
         }
 
-        protected static bool IsDefaultValue(object keyValue)
-        {
-            if (keyValue == null)
-                return true;
 
-            var bsonValue = BsonValue.Create(keyValue);
-
-            switch (bsonValue.BsonType)
-            {
-                case BsonType.Int32:
-                    return Convert.ToInt32(keyValue) == 0;
-                default:
-                    return false;
-            }
-        }
 
 
         private Document Insert(object entity)
         {
-            Document newDocument = KeyType == typeof(int)
-                ? BuildDocument(entity, IdGenerator.GetNextIdFor(typeof(TModel)))
-                : BuildDocument(entity, null);
+            logger.Debug(string.Format("Insert({0})", entity.ToString()));
+            Document newDocument = BuildDocument(entity, null);
 
-            //newDocument.LastChanges = DateTime.Now;
+
             Collection.Insert(newDocument);
             return newDocument;
         }
 
         #region IDynamicCollection
-        public long Count
-        {
-            get { return Collection.Count(); }
-        }
+
 
         public bool DeleteByKey(TKey key)
         {
+            logger.Debug(string.Format("DeleteByKey({0})", key.ToString()));
             FindAndRemoveArgs fama = new FindAndRemoveArgs();
             fama.Query = Query.EQ("_id", BsonValue.Create(key));
             fama.SortBy = SortBy.Null;
@@ -270,7 +454,8 @@ namespace MongoDyn
 
         public TModel GetByKey(TKey key)
         {
-            Document document =  GetBsonDocumentById(key);
+            logger.Debug(string.Format("GetByKey({0})", key.ToString()));
+            Document document = GetBsonDocumentById(key);
             var entity = document == null
                        ? null
                        : CastSingle(document);
@@ -280,6 +465,7 @@ namespace MongoDyn
 
         public TModel GetFirstOrDefault(System.Linq.Expressions.Expression<Func<TModel, bool>> id)
         {
+            logger.Debug(string.Format("GetFirstOrDefault({0})", id.ToString()));
             return id == null
               ? CastSingle(Collection.FindOne())
               : CustomQuery(id).FirstOrDefault();
@@ -287,12 +473,14 @@ namespace MongoDyn
 
         public IEnumerable<TModel> All()
         {
+            logger.Debug("All()");
             var documents = Collection.FindAllAs<Document>();
             return CastMany(documents);
         }
 
         public IEnumerable<TModel> CollectionQuery(string memberName, System.Linq.Expressions.ExpressionType op, object value)
         {
+            logger.Debug(string.Format("CollectionQuery({0},{1},{2})", memberName.ToString(), op, value));
             var bsonValue = BsonValue.Create(value);
 
             IMongoQuery query = null;
@@ -318,6 +506,7 @@ namespace MongoDyn
 
         public IEnumerable<TModel> CustomQuery(System.Linq.Expressions.Expression<Func<TModel, bool>> expression)
         {
+            logger.Debug(string.Format("CustomQuery({0})", expression));
             if (expression == null)
                 return All();
 
@@ -330,23 +519,47 @@ namespace MongoDyn
 
         public TModel New()
         {
-            return NotifyEnabled
+            logger.Debug("New()");
+            TModel result = NotifyEnabled
                        ? new ImpromptuDictionary().ActLike<TModel>(typeof(INotifyPropertyChanged))
                        : ImpromptuDictionary.Create<TModel>();
+
+            foreach (KeyValuePair<string, Child> pair in Childs)
+            {
+                PropertyInfo p = pair.Value.Property;
+
+                ImpromptuList child = new ImpromptuList();
+                MethodInfo act = child.GetType().GetMethod("ActLike");
+                MethodInfo generic = act.MakeGenericMethod(p.PropertyType);
+                var o = generic.Invoke(child, new object[] { new Type[] { } });
+
+                p.GetSetMethod().Invoke(result, new object[] { o });
+
+                child.CollectionChanged += (sender, e) =>
+                {
+                    // e.NewItems[0].
+                };
+            }
+            return result;
         }
+
+
 
         public void UpsertDynamic(IDictionary<string, object> item)
         {
+            logger.Debug(string.Format("UpsertDynamic({0})", item));
             Upsert(item.ActLike<TModel>());
         }
 
         public void UpsertImpromptu(dynamic item)
         {
+            logger.Debug(string.Format("UpsertImpromptu({0})", item));
             Upsert(new ImpromptuDictionary(item).ActLike<TModel>());
         }
 
         public void Upsert(TModel item)
         {
+            logger.Debug(string.Format("Upsert({0})", item));
             try
             {
                 dynamic entity = item;
@@ -354,8 +567,10 @@ namespace MongoDyn
 
                 if (IsDefaultValue(keyValue))
                 {
+                    onBeforeSave(this, new ModelEventArgs<TModel>(item));
                     Document document = Insert(entity);
                     Impromptu.InvokeSet(item, Key.Name, document.GetKey);
+                    onAfterSave(this, new ModelEventArgs<TModel>(item));
                 }
                 else Update(entity, keyValue);
             }
@@ -372,27 +587,60 @@ namespace MongoDyn
 
         public bool Delete(TModel item)
         {
+            logger.Debug(string.Format("Delete({0})", item));
             var keyValue = Impromptu.InvokeGet(item, Key.Name);
             return DeleteByKey(keyValue);
         }
 
-        public void DeleteAll(bool resetCounter)
-        {
-            Collection.Drop();
-            if (resetCounter)
-            {
-                IdGenerator.ResetCounter<TModel>();
-            }
-        }
+
         #endregion
 
 
         #region Properties
-        protected PropertyInfo Key { get; private set; }
 
-        protected bool Audit { get; private set; }
 
-        protected Type KeyType { get; private set; }
+
+
+
         #endregion
+
+        public IQueryable<TModel> AsQueryable
+        {
+            get { return Collection.AsQueryable<TModel>(); }
+        }
+
+        public void BatchInsert(IEnumerable<TModel> items)
+        {
+            logger.Debug("InsertMany(items)");
+
+            var array = items.ToArray();
+            List<TModel> materializedItems = array.Where(r => r != null).ToList();
+            logger.Info("InsertMany called for " + materializedItems.Count + "non-null items");
+            foreach (TModel record in materializedItems)
+            {
+                onBeforeSave(this, new ModelEventArgs<TModel>(record));
+            }
+            if (materializedItems.Count > 0)
+            {
+                Collection.InsertBatch(materializedItems);
+            }
+            foreach (TModel record in materializedItems)
+            {
+                onAfterSave(this, new ModelEventArgs<TModel>(record));
+            }
+
+        }
+
+
+
+
+        public IEnumerable<TModel> GetManyByKeys(IEnumerable<TKey> keys)
+        {
+
+            var array = keys.ToArray();
+            logger.Debug("GetManyByIds(ListOfIds.Length=" + array.Length + ")");
+            var q = Query.In(Dynamic.ID_FIELD, new BsonArray(array));
+            return (IEnumerable<TModel>)Collection.Find(q);
+        }
     }
 }

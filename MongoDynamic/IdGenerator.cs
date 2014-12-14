@@ -13,7 +13,6 @@ namespace MongoDyn
     {
         private static readonly MongoCollection NextIdTable;
         private const string LastId = "LastId";
-        private const string Id = "_id";
 
         static IdGenerator()
         {
@@ -28,14 +27,23 @@ namespace MongoDyn
         /// <typeparam name="T"></typeparam>
         internal static void ResetCounter<T>()
         {
-            var docName = typeof(T).Name;
-            NextIdTable.FindAndRemove(Query.EQ(Id, BsonValue.Create(docName)), SortBy.Null);
+            ResetCounter(typeof(T));
+        }
+
+        /// <summary>
+        /// Restart from zero the counter.
+        /// </summary>
+        /// <param name="t"></param>
+        internal static void ResetCounter(Type t)
+        {
+            var docName = t.Name;
+            NextIdTable.FindAndRemove(Query.EQ(Dynamic.ID_FIELD, BsonValue.Create(docName)), SortBy.Null);
         }
 
         internal static int GetNextIdFor(Type type)
         {
             var docName = type.Name;
-            var f = NextIdTable.FindAndModify(Query.EQ(Id, docName), SortBy.Null, Update.Inc(LastId, 1), true, true);
+            var f = NextIdTable.FindAndModify(Query.EQ(Dynamic.ID_FIELD, docName), SortBy.Null, Update.Inc(LastId, 1), true, true);
             return f.ModifiedDocument[LastId].AsInt32;
         }
     }

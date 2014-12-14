@@ -8,19 +8,61 @@ using System.Threading.Tasks;
 
 namespace MongoDyn
 {
-    /// <summary>
-    /// Wrap Mongo collection documents
-    /// </summary>
-    /// <typeparam name="TKey"></typeparam>
-    [ContractClass(typeof(IDynamicCollectionContract<,>))]
-    public interface IDynamicCollection<TKey, TModel>
-       
-        where TModel : class
+
+
+    public interface IDynamicCollection
     {
         /// <summary>
         /// Return collection elements count
         /// </summary>
         long Count { get; }
+
+        /// <summary>
+        /// Delete all documents
+        /// </summary>
+        /// <param name="resetCounter"></param>
+        void DeleteAll(bool resetCounter);
+
+        /// <summary>
+        /// The name of the underlying MongoDB collection name
+        /// </summary>
+        string CollectionName { get; }
+
+
+        /// <summary>
+        /// Collection Type
+        /// </summary>
+        Type CollectionType
+        {
+            get;
+        }
+
+        /// <summary>
+        /// Key Type
+        /// </summary>
+         Type KeyType
+        {
+            get;
+        }
+
+    }
+
+    /// <summary>
+    /// Wrap Mongo collection documents
+    /// </summary>
+    /// <typeparam name="TKey"></typeparam>
+    [ContractClass(typeof(IDynamicCollectionContract<,>))]
+    public interface IDynamicCollection<TKey, TModel> : IDynamicCollection
+
+        where TModel : class
+    {
+
+        /// <summary>
+        /// The Linq Queryable for the collection
+        /// </summary>
+        IQueryable<TModel> AsQueryable { get; }
+
+
 
 
         /// <summary>
@@ -52,10 +94,20 @@ namespace MongoDyn
         IEnumerable<TModel> All();
 
 
-
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="memberName"></param>
+        /// <param name="op"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
         IEnumerable<TModel> CollectionQuery(string memberName, ExpressionType op, object value);
 
-
+        /// <summary>
+        /// get list af item according exrpression
+        /// </summary>
+        /// <param name="expression"></param>
+        /// <returns></returns>
         IEnumerable<TModel> CustomQuery(Expression<Func<TModel, bool>> expression);
 
         /// <summary>
@@ -64,11 +116,24 @@ namespace MongoDyn
         /// <returns></returns>
         TModel New();
 
+        /// <summary>
+        /// Upsert items
+        /// </summary>
+        /// <param name="item"></param>
         void UpsertDynamic(IDictionary<string, object> item);
 
 
+        /// <summary>
+        /// Upsert an dynamic item
+        /// </summary>
+        /// <param name="item"></param>
         void UpsertImpromptu(dynamic item);
 
+
+        /// <summary>
+        /// Upsert an item
+        /// </summary>
+        /// <param name="item"></param>
         void Upsert(TModel item);
 
 
@@ -79,11 +144,26 @@ namespace MongoDyn
         /// <returns></returns>
         bool Delete(TModel item);
 
+
+
+
         /// <summary>
-        /// Delete all documents
+        /// Inserts many items into the collection in a single batch.
         /// </summary>
-        /// <param name="resetCounter"></param>
-        void DeleteAll(bool resetCounter);
+        /// <remarks>The number of items cannot be too large because there is a size-limit on messages, but it's pretty reasonable.</remarks>
+        /// <returns>The number of items that were Inserted.</returns>
+        void BatchInsert(IEnumerable<TModel> items);
+
+
+        /// <summary>
+        /// Retrieve matching records by keys
+        /// </summary>
+        /// <param name="keys"></param>
+        /// <returns></returns>
+        IEnumerable<TModel> GetManyByKeys(IEnumerable<TKey> keys);
+
+
+
     }
 
     [ContractClassFor(typeof(IDynamicCollection<,>))]
@@ -94,7 +174,8 @@ namespace MongoDyn
 
         public long Count
         {
-            get {
+            get
+            {
                 Contract.Ensures(Contract.Result<long>() > -1);
                 throw new NotImplementedException();
             }
@@ -152,7 +233,7 @@ namespace MongoDyn
 
         public void UpsertImpromptu(dynamic item)
         {
-            
+
             throw new NotImplementedException();
         }
 
@@ -171,6 +252,49 @@ namespace MongoDyn
         public void DeleteAll(bool resetCounter)
         {
             throw new NotImplementedException();
+        }
+
+        public IQueryable<TModel> AsQueryable
+        {
+            get
+            {
+                Contract.Ensures(Contract.Result<IQueryable<TModel>>() != null);
+                throw new NotImplementedException();
+            }
+        }
+
+        public void BatchInsert(IEnumerable<TModel> items)
+        {
+            Contract.Requires(items != null, "items for BatchInsert cannot be null");
+            throw new NotImplementedException();
+        }
+
+        public string CollectionName
+        {
+            get
+            {
+                Contract.Ensures(Contract.Result<string>() != null);
+                throw new NotImplementedException();
+            }
+        }
+
+
+        public IEnumerable<TModel> GetManyByKeys(IEnumerable<TKey> keys)
+        {
+            Contract.Requires(keys != null, "Keys for GetManyByKeys cannot be null");
+            Contract.Ensures(Contract.Result<IEnumerable<TModel>>() != null);
+            throw new NotImplementedException();
+        }
+
+
+        public Type CollectionType
+        {
+            get { throw new NotImplementedException(); }
+        }
+
+        public Type KeyType
+        {
+            get { throw new NotImplementedException(); }
         }
     }
 }

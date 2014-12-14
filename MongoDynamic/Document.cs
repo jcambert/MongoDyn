@@ -12,6 +12,7 @@ namespace MongoDyn
     [Serializable]
     internal class Document : BsonDocument
     {
+        private bool _isEmbedded;
         public Document()
             : this(null, false)
         {
@@ -19,6 +20,7 @@ namespace MongoDyn
 
         public Document(object value, bool audit)
         {
+            _isEmbedded = false;
             if (value != null)
                 this["_id"] = BsonValue.Create(value);
             else this["_id"] = BsonNull.Value;
@@ -43,5 +45,27 @@ namespace MongoDyn
         public BsonValue Id { get { return this["_id"]; } }
 
         internal Type BaseType { get; set; }
+
+        public override BsonValue this[string name]
+        {
+            get
+            {
+                return base[name];
+            }
+            set
+            {
+                base[name] = value;
+            }
+        }
+
+        internal  void Embed()
+        {
+            _isEmbedded = true;
+        }
+
+        internal bool IsEmbedded()
+        {
+            return _isEmbedded;
+        }
     }
 }

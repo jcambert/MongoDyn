@@ -1,4 +1,5 @@
-﻿using MongoDB.Driver;
+﻿using log4net;
+using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
@@ -12,6 +13,9 @@ namespace MongoDyn
 {
     public static class Dynamic
     {
+
+        public const string ID_FIELD = "_id";
+
         private static string _defaultConnectionstringName = "MongoServerSettings";
 
 
@@ -20,6 +24,10 @@ namespace MongoDyn
         public static bool NotifyPropertyChanged { get; set; }
 
         public static bool Audit { get; set; }
+
+        public static bool EagerLoad { get; set; }
+
+        private static readonly ILog logger = LogManager.GetLogger(typeof(Dynamic));
 
         public static string ConnectionStringOrName
         {
@@ -35,6 +43,7 @@ namespace MongoDyn
         {
             get
             {
+                logger.Debug("Dynamic.Db");
                 MongoClientSettings c_settings=new MongoClientSettings();
                 c_settings.ConnectionMode=ConnectionMode.Automatic;
                 c_settings.Server=new MongoServerAddress(getHost(),getPort());
@@ -43,10 +52,9 @@ namespace MongoDyn
                
                 MongoDatabase db = server.GetDatabase(getDatabaseName());
 
+                
                
                 return db;
-                //var url = new MongoUrl(GetConnString());
-                //return MongoServer.Create(url).GetDatabase(url.DatabaseName);
                 
             }
         }
@@ -54,17 +62,20 @@ namespace MongoDyn
 
         public static string getHost()
         {
+            logger.Debug("Dynamic.getHost()");
             return MongoConfiguration.Section.Host;
         }
 
         public static int getPort()
         {
+            logger.Debug("Dynamic.getPort()");
             return MongoConfiguration.Section.Port;
         }
 
 
         public static string getDatabaseName()
         {
+            logger.Debug("Dynamic.getDatabaseName()");
             return MongoConfiguration.Section.Database;
         }
 
@@ -73,6 +84,7 @@ namespace MongoDyn
           
             where TModel : class
         {
+            logger.Debug(string.Format("Dynamic.GetCollection<{0},{1}>()",typeof(TKey).Name,typeof(TModel).Name));
             if (typeof(TModel).GetProperties().Where(p=>Attribute.IsDefined(p,typeof(KeyAttribute))).Count() != 1)
                 throw new DocumentException("Model must have exactly one Key Attribute");
 
@@ -102,7 +114,7 @@ namespace MongoDyn
                 foreach (var _key in l_indexes.Keys)
                     Helper.SetIndex<TModel>(l_indexes[_key].Name, l_indexes[_key].IsUnique, l_indexes[_key].Fields.ToArray());
 
-                var repo = new DynamicCollection<TKey, TModel>( typeof(TModel).Name,key, NotifyPropertyChanged, Audit);
+                var repo = new DynamicCollection<TKey, TModel>(typeof(TModel), typeof(TModel).Name,key, NotifyPropertyChanged, Audit,EagerLoad);
 
                 value = repo;
                 Repositorories[model] = value;
@@ -115,12 +127,22 @@ namespace MongoDyn
         internal static DynamicCollection<TKey, TModel> BuildRepository<TKey, TModel>(Type type)
             where TModel : class
         {
+            logger.Debug(string.Format("Dynamic.BuildRepository<{0},{1}>({0})", typeof(TKey).Name, typeof(TModel).Name,type.Name));
             var mi = typeof(Dynamic).GetMethod("GetCollection");
-            var constr = mi.GetGenericMethodDefinition().MakeGenericMethod(type);
+            Type key = type.GetProperties().Where(prop => Attribute.IsDefined(prop, typeof(KeyAttribute))).First().GetMethod.ReturnType;
+            var constr = mi.GetGenericMethodDefinition().MakeGenericMethod(key,type);
             var result = constr.Invoke(null, null);
             return (DynamicCollection<TKey, TModel>)result;
         }
 
-
+        internal static DynamicCollection BuildRepository(Type type)
+        {
+            logger.Debug(string.Format("Dynamic.BuildRepository({0})",  type.Name));
+            var mi = typeof(Dynamic).GetMethod("GetCollection");
+            Type key = type.GetProperties().Where(prop => Attribute.IsDefined(prop, typeof(KeyAttribute))).First().GetMethod.ReturnType;
+            var constr = mi.GetGenericMethodDefinition().MakeGenericMethod(key, type);
+            var result = constr.Invoke(null, null);
+            return (DynamicCollection)result;
+        }
     }
 }
