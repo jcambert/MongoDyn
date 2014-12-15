@@ -18,11 +18,11 @@ namespace MongoDyn
         {
         }
 
-        public Document(object value, bool audit)
+        public Document(object id, bool audit)
         {
             _isEmbedded = false;
-            if (value != null)
-                this["_id"] = BsonValue.Create(value);
+            if (id != null)
+                this["_id"] = BsonValue.Create(id);
             else this["_id"] = BsonNull.Value;
 
             if (audit)

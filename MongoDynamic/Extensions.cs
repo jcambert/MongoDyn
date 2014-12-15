@@ -72,5 +72,15 @@ namespace MongoDyn
 
             return isGenericList;
         }
+
+       /// <summary>
+       /// Return all interface member 
+       /// </summary>
+       /// <param name="t"></param>
+       /// <returns></returns>
+        public static IEnumerable<MemberInfo> GetAllInterfaceMembers(this Type t)
+        {
+            return t.GetInterfaces().SelectMany(x => x.GetMembers());
+        }
     }
 }

@@ -85,7 +85,8 @@ namespace MongoDyn
             where TModel : class
         {
             logger.Debug(string.Format("Dynamic.GetCollection<{0},{1}>()",typeof(TKey).Name,typeof(TModel).Name));
-            if (typeof(TModel).GetProperties().Where(p=>Attribute.IsDefined(p,typeof(KeyAttribute))).Count() != 1)
+
+            if (typeof(TModel).GetProperties(BindingFlags.FlattenHierarchy | BindingFlags.Public | BindingFlags.Instance).Where(p => Attribute.IsDefined(p, typeof(KeyAttribute), true)).Count() != 1)
                 throw new DocumentException("Model must have exactly one Key Attribute");
 
      

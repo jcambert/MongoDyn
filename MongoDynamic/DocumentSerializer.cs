@@ -147,7 +147,7 @@ namespace MongoDyn
                 switch (btype)
                 {
                     case BsonType.Array:
-                        value = BsonSerializer.Deserialize(bsonReader, typeof(Array));
+                        value = BsonSerializer.Deserialize(bsonReader, typeof(List<object>));
                         break;
                     case BsonType.Binary:
                         if (Debugger.IsAttached) Debugger.Break();

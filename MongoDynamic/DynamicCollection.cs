@@ -537,6 +537,7 @@ namespace MongoDyn
 
                 child.CollectionChanged += (sender, e) =>
                 {
+                    if (Debugger.IsAttached) Debugger.Break();
                     // e.NewItems[0].
                 };
             }
